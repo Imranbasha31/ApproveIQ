@@ -79,6 +79,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
     try {
+      // Try server-side authentication first (supports DB users)
+      try {
+        const userData = await apiClient.loginUser(email, password);
+        if (userData && userData.id) {
+          // Normalize UUID to lowercase for consistent matching
+          userData.id = userData.id.toLowerCase();
+          setUser(userData);
+          localStorage.setItem('approveiq_user', JSON.stringify(userData));
+          apiClient.setCurrentUser(userData);
+          return { success: true };
+        }
+      } catch {
+        // Server unavailable or error, fall through to predefined users
+      }
+
+      // Fallback to predefined users
       const found = PREDEFINED_USERS.find(
         (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
       );

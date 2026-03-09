@@ -38,5 +38,23 @@
     "email": "bashaimran021@gmail.com",
     "department": "IT Administration",
     "role": "admin"
+  },
+  {
+    "id": "851867c3-df17-4486-891c-9ad6f2d721af",
+    "username": "Irfan",
+    "name": "irfan",
+    "email": "bashairfan021@gmail.com",
+    "department": "csc",
+    "role": "student",
+    "password": "12345678"
+  },
+  {
+    "id": "47d566f7-dbdc-4471-9a92-03f32d49a3a4",
+    "username": "newstudent",
+    "name": "New Student",
+    "email": "newstudent@college.edu",
+    "department": "Mechanical",
+    "role": "student",
+    "password": "test123"
   }
 ]

@@ -90,6 +90,46 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+// Login endpoint
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    try {
+      const pool = getPool();
+      const result = await pool.request()
+        .input('email', email)
+        .query('SELECT id, username, name, email, department, role, password FROM Users WHERE email=@email');
+      
+      if (result.recordset.length === 0) {
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
+
+      const user = result.recordset[0];
+      if (user.password !== password) {
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
+
+      const { password: _, ...userData } = user;
+      return res.json(userData);
+    } catch (dbError) {
+      // Fallback to mock users
+      const user = mockUsers.find(u => u.email?.toLowerCase() === email.toLowerCase());
+      if (!user || (user.password && user.password !== password)) {
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
+      const { password: _, ...userData } = user;
+      return res.json(userData);
+    }
+  } catch (error) {
+    console.error('Login error:', error);
+    return res.status(500).json({ error: 'Login failed' });
+  }
+});
+
 // Get current user from auth headers
 router.get('/me', authMiddleware, (req, res) => {
   if (!req.user) {
@@ -120,36 +160,26 @@ router.post('/', authMiddleware, requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Name, email, and role are required' });
     }
 
-    try {
-      const pool = getPool();
-      const result = await pool.request()
-        .input('username', username || email.split('@')[0])
-        .input('name', name)
-        .input('email', email)
-        .input('department', department || null)
-        .input('role', role)
-        .query(`
-          INSERT INTO Users (username, name, email, department, role)
-          OUTPUT INSERTED.id, INSERTED.username, INSERTED.name, INSERTED.email, INSERTED.department, INSERTED.role
-          VALUES (@username, @name, @email, @department, @role)
-        `);
-      return res.status(201).json(result.recordset[0]);
-    } catch (dbError) {
-      const newUser = {
-        id: generateUUID(),
-        username: username || email.split('@')[0],
-        name,
-        email,
-        department: department || '',
-        role,
-      };
-      mockUsers.push(newUser);
-      saveMockUsers(mockUsers);
-      return res.status(201).json(newUser);
-    }
+    const pool = getPool();
+    const result = await pool.request()
+      .input('username', username || email.split('@')[0])
+      .input('name', name)
+      .input('email', email)
+      .input('department', department || null)
+      .input('role', role)
+      .input('password', password || 'password')
+      .query(`
+        INSERT INTO Users (username, name, email, department, role, password)
+        OUTPUT INSERTED.id, INSERTED.username, INSERTED.name, INSERTED.email, INSERTED.department, INSERTED.role
+        VALUES (@username, @name, @email, @department, @role, @password)
+      `);
+    return res.status(201).json(result.recordset[0]);
   } catch (error) {
-    console.error('Create user error:', error);
-    return res.status(500).json({ error: 'Failed to create user' });
+    console.error('Create user error:', error.message);
+    if (error.message?.includes('UQ__Users') || error.message?.includes('UNIQUE KEY') || error.message?.includes('duplicate')) {
+      return res.status(409).json({ error: 'A user with that username already exists. Please choose a different username.' });
+    }
+    return res.status(500).json({ error: error.message || 'Failed to create user' });
   }
 });
 
@@ -159,29 +189,21 @@ router.put('/:id', authMiddleware, requireAdmin, async (req, res) => {
     const { name, email, role, department } = req.body;
     const userId = req.params.id;
 
-    try {
-      const pool = getPool();
-      await pool.request()
-        .input('id', userId)
-        .input('name', name)
-        .input('email', email)
-        .input('department', department || null)
-        .input('role', role)
-        .query('UPDATE Users SET name=@name, email=@email, department=@department, role=@role WHERE id=@id');
-      return res.json({ message: 'User updated successfully' });
-    } catch (dbError) {
-      const user = mockUsers.find(u => u.id === userId);
-      if (!user) return res.status(404).json({ error: 'User not found' });
-      if (name) user.name = name;
-      if (email) user.email = email;
-      if (role) user.role = role;
-      if (department !== undefined) user.department = department;
-      saveMockUsers(mockUsers);
-      return res.json({ message: 'User updated successfully' });
+    const pool = getPool();
+    const result = await pool.request()
+      .input('id', userId)
+      .input('name', name)
+      .input('email', email)
+      .input('department', department || null)
+      .input('role', role)
+      .query('UPDATE Users SET name=@name, email=@email, department=@department, role=@role WHERE id=@id');
+    if (result.rowsAffected[0] === 0) {
+      return res.status(404).json({ error: 'User not found' });
     }
+    return res.json({ message: 'User updated successfully' });
   } catch (error) {
-    console.error('Update user error:', error);
-    return res.status(500).json({ error: 'Failed to update user' });
+    console.error('Update user error:', error.message);
+    return res.status(500).json({ error: error.message || 'Failed to update user' });
   }
 });
 
@@ -190,22 +212,17 @@ router.delete('/:id', authMiddleware, requireAdmin, async (req, res) => {
   try {
     const userId = req.params.id;
 
-    try {
-      const pool = getPool();
-      await pool.request()
-        .input('id', userId)
-        .query('DELETE FROM Users WHERE id=@id');
-      return res.json({ message: 'User deleted successfully' });
-    } catch (dbError) {
-      const idx = mockUsers.findIndex(u => u.id === userId);
-      if (idx === -1) return res.status(404).json({ error: 'User not found' });
-      mockUsers.splice(idx, 1);
-      saveMockUsers(mockUsers);
-      return res.json({ message: 'User deleted successfully' });
+    const pool = getPool();
+    const result = await pool.request()
+      .input('id', userId)
+      .query('DELETE FROM Users WHERE id=@id');
+    if (result.rowsAffected[0] === 0) {
+      return res.status(404).json({ error: 'User not found' });
     }
+    return res.json({ message: 'User deleted successfully' });
   } catch (error) {
-    console.error('Delete user error:', error);
-    return res.status(500).json({ error: 'Failed to delete user' });
+    console.error('Delete user error:', error.message);
+    return res.status(500).json({ error: error.message || 'Failed to delete user' });
   }
 });
 

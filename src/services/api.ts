@@ -26,6 +26,18 @@ export interface LeaveRequestDTO {
 class APIClient {
   private currentUser: User | null = null;
 
+  constructor() {
+    // Initialize from localStorage so auth headers are available immediately on refresh
+    try {
+      const saved = localStorage.getItem('approveiq_user');
+      if (saved) {
+        this.currentUser = JSON.parse(saved);
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }
+
   setCurrentUser(user: User | null) {
     this.currentUser = user;
   }
@@ -59,18 +71,27 @@ class APIClient {
     });
 
     if (!response.ok) {
+      let message = `API request failed with status ${response.status}`;
       try {
         const error = await response.json();
-        throw new Error(error.error || error.message || 'API request failed');
-      } catch (e) {
-        throw new Error(`API request failed with status ${response.status}`);
+        message = error.error || error.message || message;
+      } catch {
+        // JSON parse failed, use default message
       }
+      throw new Error(message);
     }
 
     return response.json();
   }
 
   // Auth endpoints
+  async loginUser(email: string, password: string): Promise<User> {
+    return this.request<User>('/users/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+  }
+
   async getCurrentUser(): Promise<User> {
     return this.request<User>('/users/me');
   }
