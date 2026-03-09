@@ -1,0 +1,42 @@
+[
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440001",
+    "username": "student1",
+    "name": "Alice Johnson",
+    "email": "alice@college.edu",
+    "department": "Computer Science",
+    "role": "student"
+  },
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440002",
+    "username": "advisor1",
+    "name": "Prof. Smith",
+    "email": "smith@college.edu",
+    "department": "Computer Science",
+    "role": "advisor"
+  },
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440003",
+    "username": "hod1",
+    "name": "Dr. Brown",
+    "email": "brown@college.edu",
+    "department": "Computer Science",
+    "role": "hod"
+  },
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440004",
+    "username": "principal1",
+    "name": "Principal Lee",
+    "email": "lee@college.edu",
+    "department": "Administration",
+    "role": "principal"
+  },
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440005",
+    "username": "admin",
+    "name": "System Administrator",
+    "email": "bashaimran021@gmail.com",
+    "department": "IT Administration",
+    "role": "admin"
+  }
+]
