@@ -43,7 +43,21 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       );
     }
 
-    if (user?.role === 'advisor' || user?.role === 'hod' || user?.role === 'principal') {
+    if (user?.role === 'advisor') {
+      items.push(
+        { label: 'Pending Approvals', icon: CheckSquare, path: '/dashboard/approvals' },
+        { label: 'All Requests', icon: FileText, path: '/dashboard/all-requests' }
+      );
+    }
+
+    if (user?.role === 'hod') {
+      items.push(
+        { label: 'Pending Approvals', icon: CheckSquare, path: '/dashboard/approvals' },
+        { label: 'Department Requests', icon: FileText, path: '/dashboard/department-requests' }
+      );
+    }
+
+    if (user?.role === 'principal') {
       items.push(
         { label: 'Pending Approvals', icon: CheckSquare, path: '/dashboard/approvals' }
       );

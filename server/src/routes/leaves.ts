@@ -29,6 +29,66 @@ const mockLeaves: any[] = [
   },
 ];
 
+// Export leaves as CSV (admin only)
+router.get('/export/csv', authMiddleware, async (req: AuthRequest, res) => {
+  if (req.user?.role !== 'admin' && req.user?.role !== 'principal') {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+
+  try {
+    const pool = getPool();
+    const result = await pool.request().query(`
+      SELECT lr.id, u.name as student_name, lr.leave_type, lr.start_date, lr.end_date,
+             lr.reason, lr.status, lr.current_stage, lr.created_at
+      FROM LeaveRequests lr
+      JOIN Users u ON lr.student_id = u.id
+      ORDER BY lr.created_at DESC
+    `);
+
+    const rows = result.recordset;
+    const csvHeader = 'ID,Student Name,Leave Type,Start Date,End Date,Reason,Status,Stage,Created At';
+    const csvRows = rows.map((r: any) =>
+      [
+        r.id,
+        `"${(r.student_name || '').replace(/"/g, '""')}"`,
+        r.leave_type,
+        r.start_date,
+        r.end_date,
+        `"${(r.reason || '').replace(/"/g, '""')}"`,
+        r.status,
+        r.current_stage,
+        r.created_at,
+      ].join(',')
+    );
+
+    const csv = [csvHeader, ...csvRows].join('\n');
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=leave_requests.csv');
+    res.send(csv);
+  } catch (error) {
+    // Fallback to mock data
+    const csvHeader = 'ID,Student Name,Leave Type,Start Date,End Date,Reason,Status,Stage,Created At';
+    const csvRows = mockLeaves.map((r: any) =>
+      [
+        r.id,
+        `"${(r.student_name || '').replace(/"/g, '""')}"`,
+        r.leave_type,
+        r.start_date,
+        r.end_date,
+        `"${(r.reason || '').replace(/"/g, '""')}"`,
+        r.status,
+        r.current_stage,
+        r.created_at,
+      ].join(',')
+    );
+
+    const csv = [csvHeader, ...csvRows].join('\n');
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=leave_requests.csv');
+    res.send(csv);
+  }
+});
+
 // Get leaves (filtered by role)
 router.get('/', authMiddleware, async (req: AuthRequest, res) => {
   try {

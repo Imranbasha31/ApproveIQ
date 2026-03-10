@@ -8,6 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
 import { ArrowLeft, Send, Calendar, FileText, Upload } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -18,10 +25,12 @@ export default function ApplyLeave() {
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
+    leaveType: '',
     fromDate: '',
     toDate: '',
     reason: '',
   });
+  const [proofFile, setProofFile] = useState<File | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,10 +66,11 @@ export default function ApplyLeave() {
       studentId: user.id,
       studentName: user.name,
       department: user.department || 'Unknown',
+      leaveType: formData.leaveType,
       fromDate: formData.fromDate,
       toDate: formData.toDate,
       reason: formData.reason,
-    }).then(() => {
+    }, proofFile || undefined).then(() => {
       toast({
         title: 'Leave request submitted!',
         description: 'Your request has been sent to the Class Advisor for approval.',
@@ -129,6 +139,25 @@ export default function ApplyLeave() {
               {/* Date Range */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
+                  <Label htmlFor="leaveType">Leave Type</Label>
+                  <Select value={formData.leaveType} onValueChange={(v) => setFormData({ ...formData, leaveType: v })}>
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Select leave type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="medical">🏥 Medical</SelectItem>
+                      <SelectItem value="personal">👤 Personal</SelectItem>
+                      <SelectItem value="academic">📚 Academic</SelectItem>
+                      <SelectItem value="emergency">🚨 Emergency</SelectItem>
+                      <SelectItem value="other">📋 Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Date Range */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
                   <Label htmlFor="fromDate" className="flex items-center gap-2">
                     <Calendar className="h-4 w-4" />
                     From Date
@@ -184,6 +213,7 @@ export default function ApplyLeave() {
                   id="proof"
                   type="file"
                   accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={(e) => setProofFile(e.target.files?.[0] || null)}
                   className="h-11 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-medium hover:file:bg-primary/20"
                 />
                 <p className="text-xs text-muted-foreground">

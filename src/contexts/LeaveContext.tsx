@@ -5,7 +5,7 @@ import { useAuth } from './AuthContext';
 
 interface LeaveContextType {
   leaveRequests: LeaveRequest[];
-  addLeaveRequest: (request: Omit<LeaveRequest, 'id' | 'createdAt' | 'approvals' | 'currentStage' | 'status'>) => Promise<void>;
+  addLeaveRequest: (request: Omit<LeaveRequest, 'id' | 'createdAt' | 'approvals' | 'currentStage' | 'status'>, file?: File) => Promise<void>;
   approveLeave: (leaveId: string, approverId: string, approverName: string, stage: ApprovalStage, comment?: string) => Promise<void>;
   rejectLeave: (leaveId: string, approverId: string, approverName: string, stage: ApprovalStage, comment: string) => Promise<void>;
   getLeavesByStudent: (studentId: string) => LeaveRequest[];
@@ -21,13 +21,15 @@ function convertAPILeaveToRequest(data: LeaveRequestDTO): LeaveRequest {
     id: data.id.toLowerCase(),
     studentId: data.student_id.toLowerCase(),
     studentName: data.student_name,
-    department: '',
+    department: data.department || '',
+    leaveType: data.leave_type || 'general',
     fromDate: data.start_date,
     toDate: data.end_date,
     reason: data.reason,
     currentStage: (data.current_stage || 1) as ApprovalStage,
     status: data.status as any,
     createdAt: data.created_at.split('T')[0],
+    proofFile: data.proof_file || undefined,
     approvals: [],
   };
 }
@@ -76,14 +78,14 @@ export function LeaveProvider({ children }: { children: ReactNode }) {
     }
   }, [user?.id]); // Use user.id to trigger on user changes
 
-  const addLeaveRequest = async (request: Omit<LeaveRequest, 'id' | 'createdAt' | 'approvals' | 'currentStage' | 'status'>) => {
+  const addLeaveRequest = async (request: Omit<LeaveRequest, 'id' | 'createdAt' | 'approvals' | 'currentStage' | 'status'>, file?: File) => {
     try {
       const response = await apiClient.createLeave({
-        leave_type: 'general',
+        leave_type: request.leaveType || 'general',
         start_date: request.fromDate,
         end_date: request.toDate,
         reason: request.reason,
-      });
+      }, file);
       console.log('Leave created successfully:', response);
       
       // Reload leaves to get the new data

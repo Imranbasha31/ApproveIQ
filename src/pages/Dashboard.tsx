@@ -1,7 +1,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useLeave } from '@/contexts/LeaveContext';
 import { DashboardLayout } from '@/components/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { LeaveRequestCard } from '@/components/LeaveRequestCard';
 import { Link } from 'react-router-dom';
@@ -11,7 +11,7 @@ import {
   XCircle, 
   Clock, 
   Plus,
-  ArrowRight
+  ArrowRight,
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -27,246 +27,139 @@ export default function Dashboard() {
     }
   };
 
-  // Student stats
   const studentLeaves = user?.id ? getLeavesByStudent(user.id) : [];
-  const pendingCount = studentLeaves.filter(l => l.status === 'pending').length;
-  const approvedCount = studentLeaves.filter(l => l.status === 'approved').length;
-  const rejectedCount = studentLeaves.filter(l => l.status === 'rejected').length;
-
-  // Approver stats
   const pendingApprovals = getPendingApprovals(getStageForRole());
 
-  // Admin stats
   const totalRequests = leaveRequests.length;
   const totalPending = leaveRequests.filter(l => l.status === 'pending').length;
   const totalApproved = leaveRequests.filter(l => l.status === 'approved').length;
+  const totalRejected = leaveRequests.filter(l => l.status === 'rejected').length;
+
+  const stats = [
+    { label: 'Total', value: totalRequests, icon: FileText, color: 'text-primary', bg: 'bg-primary/10' },
+    { label: 'Pending', value: totalPending, icon: Clock, color: 'text-amber-500', bg: 'bg-amber-50' },
+    { label: 'Approved', value: totalApproved, icon: CheckCircle, color: 'text-emerald-500', bg: 'bg-emerald-50' },
+    { label: 'Rejected', value: totalRejected, icon: XCircle, color: 'text-red-500', bg: 'bg-red-50' },
+  ];
+
+  const renderOverview = () => (
+    <div className="grid grid-cols-4 gap-3 mb-6">
+      {stats.map(({ label, value, icon: Icon, color, bg }) => (
+        <Card key={label} className="shadow-sm">
+          <CardContent className="p-3 flex items-center gap-3">
+            <div className={`h-9 w-9 rounded-lg ${bg} flex items-center justify-center shrink-0`}>
+              <Icon className={`h-4 w-4 ${color}`} />
+            </div>
+            <div>
+              <p className="text-lg font-bold leading-none">{value}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
 
   const renderStudentDashboard = () => (
     <>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-display font-bold">Welcome back, {user?.name?.split(' ')[0]}!</h1>
-          <p className="text-muted-foreground mt-1">Track and manage your leave requests</p>
+          <h1 className="text-xl font-bold">Welcome back, {user?.name?.split(' ')[0]}!</h1>
+          <p className="text-sm text-muted-foreground">Track and manage your leave requests</p>
         </div>
-        <Button asChild variant="hero">
+        <Button asChild size="sm">
           <Link to="/dashboard/apply">
-            <Plus className="h-4 w-4" />
+            <Plus className="h-4 w-4 mr-1" />
             Apply for Leave
           </Link>
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                <Clock className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{pendingCount}</p>
-                <p className="text-sm text-muted-foreground">Pending</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-success/10 flex items-center justify-center">
-                <CheckCircle className="h-6 w-6 text-success" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{approvedCount}</p>
-                <p className="text-sm text-muted-foreground">Approved</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-destructive/10 flex items-center justify-center">
-                <XCircle className="h-6 w-6 text-destructive" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{rejectedCount}</p>
-                <p className="text-sm text-muted-foreground">Rejected</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {renderOverview()}
 
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-display font-semibold">Recent Requests</h2>
-          <Button variant="ghost" asChild>
-            <Link to="/dashboard/my-requests">
-              View All <ArrowRight className="h-4 w-4 ml-1" />
-            </Link>
-          </Button>
-        </div>
-        <div className="space-y-4">
-          {studentLeaves.slice(0, 3).map((request) => (
-            <LeaveRequestCard key={request.id} request={request} />
-          ))}
-          {studentLeaves.length === 0 && (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">No leave requests yet</p>
-                <Button asChild variant="subtle" className="mt-4">
-                  <Link to="/dashboard/apply">Apply for your first leave</Link>
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-semibold">Recent Requests</h2>
+        <Button variant="ghost" size="sm" asChild className="h-7 text-xs">
+          <Link to="/dashboard/my-requests">
+            View All <ArrowRight className="h-3 w-3 ml-1" />
+          </Link>
+        </Button>
+      </div>
+      <div className="space-y-2">
+        {studentLeaves.slice(0, 5).map((request) => (
+          <LeaveRequestCard key={request.id} request={request} />
+        ))}
+        {studentLeaves.length === 0 && (
+          <Card>
+            <CardContent className="py-8 text-center">
+              <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">No leave requests yet</p>
+              <Button asChild variant="outline" size="sm" className="mt-3">
+                <Link to="/dashboard/apply">Apply for your first leave</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </>
   );
 
   const renderApproverDashboard = () => (
     <>
-      <div className="mb-6">
-        <h1 className="text-2xl lg:text-3xl font-display font-bold">Welcome, {user?.name?.split(' ')[0]}!</h1>
-        <p className="text-muted-foreground mt-1">Review and approve leave requests</p>
+      <div className="mb-4">
+        <h1 className="text-xl font-bold">Welcome, {user?.name?.split(' ')[0]}!</h1>
+        <p className="text-sm text-muted-foreground">Review and approve leave requests</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        <Card className="bg-gradient-primary text-primary-foreground">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-primary-foreground/20 flex items-center justify-center">
-                <Clock className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="text-3xl font-bold">{pendingApprovals.length}</p>
-                <p className="text-sm opacity-90">Pending Approvals</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-success/10 flex items-center justify-center">
-                <CheckCircle className="h-6 w-6 text-success" />
-              </div>
-              <div>
-                <p className="text-3xl font-bold">{totalApproved}</p>
-                <p className="text-sm text-muted-foreground">Total Approved</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {renderOverview()}
 
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-display font-semibold">Pending Approvals</h2>
-          {pendingApprovals.length > 0 && (
-            <Button variant="ghost" asChild>
-              <Link to="/dashboard/approvals">
-                View All <ArrowRight className="h-4 w-4 ml-1" />
-              </Link>
-            </Button>
-          )}
-        </div>
-        <div className="space-y-4">
-          {pendingApprovals.slice(0, 3).map((request) => (
-            <LeaveRequestCard key={request.id} request={request} showTimeline />
-          ))}
-          {pendingApprovals.length === 0 && (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <CheckCircle className="h-12 w-12 text-success mx-auto mb-4" />
-                <p className="text-muted-foreground">All caught up! No pending approvals.</p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-semibold">Pending Approvals ({pendingApprovals.length})</h2>
+        {pendingApprovals.length > 0 && (
+          <Button variant="ghost" size="sm" asChild className="h-7 text-xs">
+            <Link to="/dashboard/approvals">
+              View All <ArrowRight className="h-3 w-3 ml-1" />
+            </Link>
+          </Button>
+        )}
+      </div>
+      <div className="space-y-2">
+        {pendingApprovals.slice(0, 5).map((request) => (
+          <LeaveRequestCard key={request.id} request={request} />
+        ))}
+        {pendingApprovals.length === 0 && (
+          <Card>
+            <CardContent className="py-8 text-center">
+              <CheckCircle className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">All caught up! No pending approvals.</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </>
   );
 
   const renderAdminDashboard = () => (
     <>
-      <div className="mb-6">
-        <h1 className="text-2xl lg:text-3xl font-display font-bold">Admin Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Manage users and monitor leave requests</p>
+      <div className="mb-4">
+        <h1 className="text-xl font-bold">Admin Dashboard</h1>
+        <p className="text-sm text-muted-foreground">Manage users and monitor leave requests</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                <FileText className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{totalRequests}</p>
-                <p className="text-sm text-muted-foreground">Total Requests</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-warning/10 flex items-center justify-center">
-                <Clock className="h-6 w-6 text-warning" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{totalPending}</p>
-                <p className="text-sm text-muted-foreground">Pending</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-success/10 flex items-center justify-center">
-                <CheckCircle className="h-6 w-6 text-success" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{totalApproved}</p>
-                <p className="text-sm text-muted-foreground">Approved</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-destructive/10 flex items-center justify-center">
-                <XCircle className="h-6 w-6 text-destructive" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{leaveRequests.filter(l => l.status === 'rejected').length}</p>
-                <p className="text-sm text-muted-foreground">Rejected</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {renderOverview()}
 
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-display font-semibold">Recent Requests</h2>
-          <Button variant="ghost" asChild>
-            <Link to="/dashboard/all-requests">
-              View All <ArrowRight className="h-4 w-4 ml-1" />
-            </Link>
-          </Button>
-        </div>
-        <div className="space-y-4">
-          {leaveRequests.slice(0, 3).map((request) => (
-            <LeaveRequestCard key={request.id} request={request} />
-          ))}
-        </div>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-semibold">Recent Requests</h2>
+        <Button variant="ghost" size="sm" asChild className="h-7 text-xs">
+          <Link to="/dashboard/all-requests">
+            View All <ArrowRight className="h-3 w-3 ml-1" />
+          </Link>
+        </Button>
+      </div>
+      <div className="space-y-2">
+        {leaveRequests.slice(0, 5).map((request) => (
+          <LeaveRequestCard key={request.id} request={request} />
+        ))}
       </div>
     </>
   );
@@ -276,7 +169,6 @@ export default function Dashboard() {
       {user?.role === 'student' && renderStudentDashboard()}
       {(user?.role === 'advisor' || user?.role === 'hod' || user?.role === 'principal') && renderApproverDashboard()}
       {user?.role === 'admin' && renderAdminDashboard()}
-    
     </DashboardLayout>
   );
 }

@@ -14,6 +14,7 @@ import ApplyLeave from "./pages/ApplyLeave";
 import MyRequests from "./pages/MyRequests";
 import Approvals from "./pages/Approvals";
 import AllRequests from "./pages/AllRequests";
+import DepartmentRequests from "./pages/DepartmentRequests";
 import ManageUsers from "./pages/ManageUsers";
 import Reports from "./pages/Reports";
 import NotFound from "./pages/NotFound";
@@ -45,6 +46,7 @@ function AppRoutes() {
       <Route path="/dashboard/my-requests" element={<ProtectedRoute><MyRequests /></ProtectedRoute>} />
       <Route path="/dashboard/approvals" element={<ProtectedRoute><Approvals /></ProtectedRoute>} />
       <Route path="/dashboard/all-requests" element={<ProtectedRoute><AllRequests /></ProtectedRoute>} />
+      <Route path="/dashboard/department-requests" element={<ProtectedRoute><DepartmentRequests /></ProtectedRoute>} />
       <Route path="/dashboard/users" element={<ProtectedRoute><ManageUsers /></ProtectedRoute>} />
       <Route path="/dashboard/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />

@@ -1,14 +1,13 @@
 import { useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import { useLeave } from '@/contexts/LeaveContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { DashboardLayout } from '@/components/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/StatusBadge';
 import { WorkflowTimeline } from '@/components/WorkflowTimeline';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Link } from 'react-router-dom';
-import { FileText, Plus, Eye, Paperclip } from 'lucide-react';
+import { Search, FileText, Building, Eye, Paperclip } from 'lucide-react';
 import { formatDate, calculateDays, LEAVE_TYPE_CONFIG } from '@/lib/utils';
 import {
   Select,
@@ -25,50 +24,49 @@ import {
 } from '@/components/ui/dialog';
 import { LeaveRequest } from '@/types/leave';
 
-export default function MyRequests() {
+export default function DepartmentRequests() {
+  const { leaveRequests } = useLeave();
   const { user } = useAuth();
-  const { getLeavesByStudent, isLoading } = useLeave();
+  const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedRequest, setSelectedRequest] = useState<LeaveRequest | null>(null);
 
-  const studentLeaves = user?.id ? getLeavesByStudent(user.id) : [];
+  const departmentRequests = leaveRequests.filter(
+    r => r.department.toLowerCase() === (user?.department || '').toLowerCase()
+  );
 
-  const filteredLeaves = statusFilter === 'all'
-    ? studentLeaves
-    : studentLeaves.filter(l => l.status === statusFilter);
+  const filteredRequests = departmentRequests.filter(r => {
+    const matchesSearch = r.studentName.toLowerCase().includes(search.toLowerCase()) ||
+      r.reason.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || r.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   const getUploadUrl = (file: string) =>
     `${import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : 'http://localhost:3001'}/uploads/${file}`;
 
-  if (isLoading) {
-    return (
-      <DashboardLayout>
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
-        </div>
-      </DashboardLayout>
-    );
-  }
-
   return (
     <DashboardLayout>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">My Requests</h1>
-          <p className="text-sm text-muted-foreground">All your submitted leave requests</p>
-        </div>
-        <Button asChild size="sm">
-          <Link to="/dashboard/apply">
-            <Plus className="h-4 w-4 mr-1" />
-            New Request
-          </Link>
-        </Button>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold">Department Leave Requests</h1>
+        <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1">
+          <Building className="h-3.5 w-3.5" />
+          {user?.department || 'Your Department'}
+        </p>
       </div>
 
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Leave History</CardTitle>
+          <div className="flex items-center justify-between gap-3">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search by name or reason..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 h-8 text-sm"
+              />
+            </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-[140px] h-8 text-sm">
                 <SelectValue placeholder="All Status" />
@@ -83,13 +81,10 @@ export default function MyRequests() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {filteredLeaves.length === 0 ? (
+          {filteredRequests.length === 0 ? (
             <div className="py-12 text-center">
               <FileText className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">No requests found</p>
-              <Button asChild variant="outline" size="sm" className="mt-3">
-                <Link to="/dashboard/apply">Apply for leave</Link>
-              </Button>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -97,6 +92,7 @@ export default function MyRequests() {
                 <thead>
                   <tr className="border-t border-b bg-muted/50">
                     <th className="text-left font-medium text-muted-foreground px-4 py-2.5 w-10">#</th>
+                    <th className="text-left font-medium text-muted-foreground px-4 py-2.5">Student</th>
                     <th className="text-left font-medium text-muted-foreground px-4 py-2.5">Type</th>
                     <th className="text-left font-medium text-muted-foreground px-4 py-2.5">From</th>
                     <th className="text-left font-medium text-muted-foreground px-4 py-2.5">To</th>
@@ -107,16 +103,17 @@ export default function MyRequests() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredLeaves.map((leave, idx) => {
+                  {filteredRequests.map((leave, idx) => {
                     const typeKey = leave.leaveType?.toLowerCase() || 'other';
                     const typeConfig = LEAVE_TYPE_CONFIG[typeKey] || LEAVE_TYPE_CONFIG.other;
                     return (
                       <tr key={leave.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-3 text-muted-foreground">{filteredLeaves.length - idx}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{filteredRequests.length - idx}</td>
+                        <td className="px-4 py-3 font-medium">{leave.studentName}</td>
                         <td className="px-4 py-3">
                           <span className="flex items-center gap-1.5">
                             <span>{typeConfig.icon}</span>
-                            <span className="capitalize">{typeConfig.label}</span>
+                            <span>{typeConfig.label}</span>
                           </span>
                         </td>
                         <td className="px-4 py-3">{formatDate(leave.fromDate)}</td>
@@ -160,6 +157,14 @@ export default function MyRequests() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
+                  <p className="text-muted-foreground">Student</p>
+                  <p className="font-medium">{selectedRequest.studentName}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Department</p>
+                  <p className="font-medium">{selectedRequest.department}</p>
+                </div>
+                <div>
                   <p className="text-muted-foreground">From</p>
                   <p className="font-medium">{formatDate(selectedRequest.fromDate)}</p>
                 </div>
@@ -178,7 +183,7 @@ export default function MyRequests() {
               </div>
               <div className="text-sm">
                 <p className="text-muted-foreground mb-1">Reason</p>
-                <p className="bg-muted p-2.5 rounded text-sm">{selectedRequest.reason}</p>
+                <p className="bg-muted p-2.5 rounded">{selectedRequest.reason}</p>
               </div>
               {selectedRequest.proofFile && (
                 <a

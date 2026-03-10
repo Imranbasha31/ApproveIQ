@@ -90,8 +90,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           apiClient.setCurrentUser(userData);
           return { success: true };
         }
-      } catch {
-        // Server unavailable or error, fall through to predefined users
+        return { success: false, error: 'Invalid email or password' };
+      } catch (err: any) {
+        // If server returned an auth error, show it directly (don't fall through)
+        if (err.message && !err.message.includes('Failed to fetch') && !err.message.includes('NetworkError')) {
+          return { success: false, error: err.message };
+        }
+        // Only fall through to predefined users if server is unreachable
       }
 
       // Fallback to predefined users

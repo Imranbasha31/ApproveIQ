@@ -19,6 +19,7 @@ export interface LeaveRequest {
   studentId: string;
   studentName: string;
   department: string;
+  leaveType: string;
   fromDate: string;
   toDate: string;
   reason: string;
