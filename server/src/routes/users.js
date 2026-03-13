@@ -1,229 +1,298 @@
-import { Router } from 'express';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { getPool } from '../db/connection.js';
-import { authMiddleware } from '../middleware/auth.js';
-
+import { Router } from "express";
+import { getPool } from "../db/connection.js";
+import { authMiddleware } from "../middleware/auth.js";
 const router = Router();
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const MOCK_USERS_FILE = path.join(__dirname, '../../data/users.json');
-
-// Default mock users
-const DEFAULT_USERS = [
+const MOCK_USERS = [
   {
-    id: '550e8400-e29b-41d4-a716-446655440001',
-    username: 'student1',
-    name: 'Alice Johnson',
-    email: 'alice@college.edu',
-    department: 'Computer Science',
-    role: 'student',
+    id: "550e8400-e29b-41d4-a716-446655440001",
+    username: "student1",
+    name: "Alice Johnson",
+    email: "alice@college.edu",
+    department: "Computer Science",
+    role: "student"
   },
   {
-    id: '550e8400-e29b-41d4-a716-446655440002',
-    username: 'advisor1',
-    name: 'Prof. Smith',
-    email: 'smith@college.edu',
-    department: 'Computer Science',
-    role: 'advisor',
+    id: "550e8400-e29b-41d4-a716-446655440002",
+    username: "advisor1",
+    name: "Prof. Smith",
+    email: "smith@college.edu",
+    department: "Computer Science",
+    role: "advisor"
   },
   {
-    id: '550e8400-e29b-41d4-a716-446655440003',
-    username: 'hod1',
-    name: 'Dr. Brown',
-    email: 'brown@college.edu',
-    department: 'Computer Science',
-    role: 'hod',
+    id: "550e8400-e29b-41d4-a716-446655440003",
+    username: "hod1",
+    name: "Dr. Brown",
+    email: "brown@college.edu",
+    department: "Computer Science",
+    role: "hod"
   },
   {
-    id: '550e8400-e29b-41d4-a716-446655440004',
-    username: 'principal1',
-    name: 'Principal Lee',
-    email: 'lee@college.edu',
-    department: 'Administration',
-    role: 'principal',
+    id: "550e8400-e29b-41d4-a716-446655440004",
+    username: "principal1",
+    name: "Principal Lee",
+    email: "lee@college.edu",
+    department: "Administration",
+    role: "principal"
   },
   {
-    id: '550e8400-e29b-41d4-a716-446655440005',
-    username: 'admin',
-    name: 'System Administrator',
-    email: 'bashaimran021@gmail.com',
-    department: 'IT Administration',
-    role: 'admin',
-  },
+    id: "550e8400-e29b-41d4-a716-446655440005",
+    username: "admin",
+    name: "System Administrator",
+    email: "bashaimran021@gmail.com",
+    department: "IT Administration",
+    role: "admin"
+  }
 ];
 
-function loadMockUsers() {
-  try {
-    if (fs.existsSync(MOCK_USERS_FILE)) {
-      return JSON.parse(fs.readFileSync(MOCK_USERS_FILE, 'utf8'));
-    }
-  } catch (e) { /* ignore */ }
-  saveMockUsers(DEFAULT_USERS);
-  return DEFAULT_USERS;
-}
+const MOCK_CREDENTIALS = {
+  "alice@college.edu": "password",
+  "smith@college.edu": "password",
+  "brown@college.edu": "password",
+  "lee@college.edu": "password",
+  "bashaimran021@gmail.com": "12345678"
+};
 
-function saveMockUsers(data) {
-  try {
-    const dir = path.dirname(MOCK_USERS_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(MOCK_USERS_FILE, JSON.stringify(data, null, 2), 'utf8');
-  } catch (e) {
-    console.error('Error saving users:', e.message);
+router.post("/login", async (req, res) => {
+  const { email, password } = req.body || {};
+
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email and password are required" });
   }
-}
 
-let mockUsers = loadMockUsers();
-
-function generateUUID() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-}
-
-// Check if requester is admin
-function requireAdmin(req, res, next) {
-  if (req.user?.role !== 'admin') {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-  next();
-}
-
-// Login endpoint
-router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
+    const pool = getPool();
+
+    // SQL Server validates column names at parse time, so pick an existing credential column first.
+    const columnsResult = await pool.request().query(`
+      SELECT name
+      FROM sys.columns
+      WHERE object_id = OBJECT_ID('Users')
+        AND name IN ('password', 'password_hash')
+    `);
+
+    const colNames = new Set((columnsResult.recordset || []).map((row) => String(row.name).toLowerCase()));
+    const credentialColumn = colNames.has("password")
+      ? "[password]"
+      : colNames.has("password_hash")
+        ? "[password_hash]"
+        : null;
+
+    if (!credentialColumn) {
+      return res.status(401).json({ error: "Invalid email or password" });
     }
 
-    try {
-      const pool = getPool();
-      const result = await pool.request()
-        .input('email', email)
-        .query('SELECT id, username, name, email, department, role, password FROM Users WHERE email=@email');
-      
-      if (result.recordset.length === 0) {
-        return res.status(401).json({ error: 'Invalid email or password' });
-      }
+    const query = `
+      SELECT TOP 1 id, username, name, email, department, role
+      FROM Users
+      WHERE LOWER(email) = LOWER(@email)
+        AND CAST(${credentialColumn} AS NVARCHAR(255)) = @password
+    `;
 
-      const user = result.recordset[0];
-      if (user.password !== password) {
-        return res.status(401).json({ error: 'Invalid email or password' });
-      }
+    const result = await pool.request().input("email", email).input("password", password).query(query);
 
-      const { password: _, ...userData } = user;
-      return res.json(userData);
-    } catch (dbError) {
-      // Fallback to mock users
-      const user = mockUsers.find(u => u.email?.toLowerCase() === email.toLowerCase());
-      if (!user || (user.password && user.password !== password)) {
-        return res.status(401).json({ error: 'Invalid email or password' });
-      }
-      const { password: _, ...userData } = user;
-      return res.json(userData);
+    if (!result.recordset || result.recordset.length === 0) {
+      return res.status(401).json({ error: "Invalid email or password" });
     }
+
+    return res.json(result.recordset[0]);
   } catch (error) {
-    console.error('Login error:', error);
-    return res.status(500).json({ error: 'Login failed' });
+    const found = MOCK_USERS.find((u) => u.email.toLowerCase() === String(email).toLowerCase());
+    if (!found || MOCK_CREDENTIALS[found.email.toLowerCase()] !== password) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+    return res.json(found);
   }
 });
 
-// Get current user from auth headers
-router.get('/me', authMiddleware, (req, res) => {
+router.get("/me", authMiddleware, (req, res) => {
   if (!req.user) {
-    return res.status(401).json({ error: 'Not authenticated' });
+    return res.status(401).json({ error: "Not authenticated" });
   }
   res.json(req.user);
 });
-
-// Get all users
-router.get('/', authMiddleware, async (req, res) => {
+router.get("/", authMiddleware, async (req, res) => {
   try {
     const pool = getPool();
     const result = await pool.request().query(
-      'SELECT id, username, name, email, department, role FROM Users'
+      "SELECT id, username, name, email, department, role FROM Users"
     );
     res.json(result.recordset);
   } catch (error) {
-    console.log('DB unavailable, using mock users');
-    res.json(mockUsers);
+    console.log("DB unavailable, using mock users");
+    res.json(MOCK_USERS);
   }
 });
 
-// Create new user (admin only)
-router.post('/', authMiddleware, requireAdmin, async (req, res) => {
+router.post("/", authMiddleware, async (req, res) => {
+  const { username, name, email, department, role, password } = req.body || {};
+
+  if (!name || !email || !role || !password) {
+    return res.status(400).json({ error: "name, email, role, and password are required" });
+  }
+
+  const normalizedUsername = (username || String(email).split("@")[0] || "").trim();
+  if (!normalizedUsername) {
+    return res.status(400).json({ error: "username is required" });
+  }
+
   try {
-    const { name, email, role, department, username, password } = req.body;
-    if (!name || !email || !role) {
-      return res.status(400).json({ error: 'Name, email, and role are required' });
+    const pool = getPool();
+    const existing = await pool.request().input("username", normalizedUsername).query(
+      "SELECT TOP 1 id FROM Users WHERE LOWER(username) = LOWER(@username)"
+    );
+
+    if (existing.recordset?.length) {
+      return res.status(409).json({ error: "Username already exists" });
     }
 
-    const pool = getPool();
     const result = await pool.request()
-      .input('username', username || email.split('@')[0])
-      .input('name', name)
-      .input('email', email)
-      .input('department', department || null)
-      .input('role', role)
-      .input('password', password || 'password')
+      .input("username", normalizedUsername)
+      .input("name", name)
+      .input("email", email)
+      .input("department", department || "")
+      .input("role", role)
+      .input("password", password)
       .query(`
-        INSERT INTO Users (username, name, email, department, role, password)
-        OUTPUT INSERTED.id, INSERTED.username, INSERTED.name, INSERTED.email, INSERTED.department, INSERTED.role
+        INSERT INTO Users (username, name, email, department, role, [password])
+        OUTPUT inserted.id, inserted.username, inserted.name, inserted.email, inserted.department, inserted.role
         VALUES (@username, @name, @email, @department, @role, @password)
       `);
+
     return res.status(201).json(result.recordset[0]);
   } catch (error) {
-    console.error('Create user error:', error.message);
-    if (error.message?.includes('UQ__Users') || error.message?.includes('UNIQUE KEY') || error.message?.includes('duplicate')) {
-      return res.status(409).json({ error: 'A user with that username already exists. Please choose a different username.' });
+    const duplicate = MOCK_USERS.some(
+      (u) => u.username.toLowerCase() === normalizedUsername.toLowerCase() || u.email.toLowerCase() === String(email).toLowerCase()
+    );
+    if (duplicate) {
+      return res.status(409).json({ error: "User with same username/email already exists" });
     }
-    return res.status(500).json({ error: error.message || 'Failed to create user' });
+
+    const created = {
+      id: `mock-${Date.now()}-${Math.round(Math.random() * 1e9)}`,
+      username: normalizedUsername,
+      name,
+      email,
+      department: department || "",
+      role
+    };
+    MOCK_USERS.push(created);
+    MOCK_CREDENTIALS[String(email).toLowerCase()] = String(password);
+    return res.status(201).json(created);
   }
 });
 
-// Update user (admin only)
-router.put('/:id', authMiddleware, requireAdmin, async (req, res) => {
+router.put("/:id", authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { name, email, department, role, password } = req.body || {};
+
+  if (!name || !email || !role) {
+    return res.status(400).json({ error: "name, email, and role are required" });
+  }
+
   try {
-    const { name, email, role, department } = req.body;
-    const userId = req.params.id;
-
     const pool = getPool();
-    const result = await pool.request()
-      .input('id', userId)
-      .input('name', name)
-      .input('email', email)
-      .input('department', department || null)
-      .input('role', role)
-      .query('UPDATE Users SET name=@name, email=@email, department=@department, role=@role WHERE id=@id');
-    if (result.rowsAffected[0] === 0) {
-      return res.status(404).json({ error: 'User not found' });
+    const hasPassword = typeof password === "string" && password.length > 0;
+    const request = pool.request()
+      .input("id", id)
+      .input("name", name)
+      .input("email", email)
+      .input("department", department || "")
+      .input("role", role);
+
+    if (hasPassword) {
+      request.input("password", password);
     }
-    return res.json({ message: 'User updated successfully' });
+
+    const result = await request.query(`
+      UPDATE Users
+      SET name = @name,
+          email = @email,
+          department = @department,
+          role = @role,
+          ${hasPassword ? "[password] = @password," : ""}
+          updated_at = GETUTCDATE()
+      OUTPUT inserted.id, inserted.username, inserted.name, inserted.email, inserted.department, inserted.role
+      WHERE id = @id
+    `);
+
+    if (!result.recordset?.length) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    return res.json(result.recordset[0]);
   } catch (error) {
-    console.error('Update user error:', error.message);
-    return res.status(500).json({ error: error.message || 'Failed to update user' });
+    const idx = MOCK_USERS.findIndex((u) => u.id === id);
+    if (idx === -1) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    MOCK_USERS[idx] = {
+      ...MOCK_USERS[idx],
+      name,
+      email,
+      department: department || "",
+      role
+    };
+
+    if (typeof password === "string" && password.length > 0) {
+      MOCK_CREDENTIALS[String(email).toLowerCase()] = password;
+    }
+
+    return res.json(MOCK_USERS[idx]);
   }
 });
 
-// Delete user (admin only)
-router.delete('/:id', authMiddleware, requireAdmin, async (req, res) => {
+router.delete("/:id", authMiddleware, async (req, res) => {
+  const { id } = req.params;
+
   try {
-    const userId = req.params.id;
-
     const pool = getPool();
-    const result = await pool.request()
-      .input('id', userId)
-      .query('DELETE FROM Users WHERE id=@id');
-    if (result.rowsAffected[0] === 0) {
-      return res.status(404).json({ error: 'User not found' });
+    const existing = await pool.request().input("id", id).query(
+      "SELECT TOP 1 id FROM Users WHERE id = @id"
+    );
+
+    if (!existing.recordset?.length) {
+      return res.status(404).json({ error: "User not found" });
     }
-    return res.json({ message: 'User deleted successfully' });
+
+    // Delete dependent rows first to satisfy foreign keys in LeaveApprovals/LeaveRequests.
+    await pool.request().input("id", id).query(`
+      DELETE FROM LeaveApprovals
+      WHERE approver_id = @id
+         OR leave_request_id IN (
+           SELECT id FROM LeaveRequests WHERE student_id = @id
+         )
+    `);
+
+    await pool.request().input("id", id).query(
+      "DELETE FROM LeaveRequests WHERE student_id = @id"
+    );
+
+    await pool.request().input("id", id).query(
+      "DELETE FROM Users WHERE id = @id"
+    );
+
+    return res.json({ success: true });
   } catch (error) {
-    console.error('Delete user error:', error.message);
-    return res.status(500).json({ error: error.message || 'Failed to delete user' });
+    if (error?.number === 547) {
+      return res.status(409).json({ error: "Cannot delete user due to related records" });
+    }
+
+    if (error?.message && !String(error.message).includes("Database not connected")) {
+      return res.status(500).json({ error: "Failed to delete user" });
+    }
+
+    const idx = MOCK_USERS.findIndex((u) => u.id === id);
+    if (idx === -1) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    MOCK_USERS.splice(idx, 1);
+    return res.json({ success: true });
   }
 });
-
-export default router;
+var stdin_default = router;
+export {
+  stdin_default as default
+};
